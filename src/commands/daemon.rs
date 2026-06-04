@@ -25,7 +25,7 @@ pub enum IPCResponse {
 
 const SOCKET_NAME: &str = "localpost.sock";
 
-pub fn daemon(file: String, key: String) -> Result<()> {
+pub fn daemon(file: &String, key: &String) -> Result<()> {
     println!("Starting daemon to serve file: {file} with key: {key}");
 
     let name = SOCKET_NAME.to_ns_name::<GenericNamespaced>()?;

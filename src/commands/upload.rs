@@ -1,20 +1,22 @@
 use crate::config::Config;
 use rand::RngExt;
+use anyhow::Result;
 
-pub fn upload(config: &Config, file: &str) {
+pub fn upload(config: &Config, file: &str) -> Result<()> {
     // TODO: Implement collision handling
     let key = generate_key(config);
 
     let file_path = std::path::Path::new(file);
     if !file_path.exists() {
         println!("File not found: {file}");
-        return;
+        return Ok(());
     }
 
     // Check if the daemon is running and if the file is already being served
     // If not, start serving the file and print the key
 
     println!("Uploading file: {file} with key: {key}");
+    Ok(())
 }
 
 pub fn generate_key(config: &Config) -> String {

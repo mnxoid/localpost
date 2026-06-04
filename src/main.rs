@@ -1,3 +1,4 @@
+use anyhow::Result;
 use clap::{Command, arg};
 
 use crate::config::Config;
@@ -42,7 +43,7 @@ fn cli() -> Command {
         )
 }
 
-fn main() {
+fn main() -> Result<()> {
     let matches = cli().get_matches();
 
     // Load the config file
@@ -63,6 +64,12 @@ fn main() {
             sub.get_one::<String>("key")
                 .expect("Key argument is required"),
             sub.get_one::<String>("output"),
+        ),
+        Some(("daemon", sub)) => commands::daemon(
+            sub.get_one::<String>("file")
+                .expect("File argument is required"),
+            sub.get_one::<String>("key")
+                .expect("Key argument is required"),
         ),
         _ => unreachable!(),
     }
