@@ -1,0 +1,16 @@
+[package]
+name = "localpost"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+async-trait = "0.1"
+tokio = { version = "1", features = ["full"] }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+postcard = { version = "1", features = ["use-std"] }
+comfy-table = "7"
+directories = "6"
+rand = "0.10.1"
+anyhow = "1"
+interprocess = { version = "2.4", features = ["tokio"] }
