@@ -26,7 +26,7 @@ impl<'a> Config<'a> {
             // In the future, this will read the config file and populate the fields accordingly
             Self::default()
         } else {
-            println!("Config file not found at: {pathstr}");
+            // println!("Config file not found at: {pathstr}");
             Self::default()
         }
     }

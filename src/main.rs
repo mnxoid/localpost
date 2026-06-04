@@ -2,8 +2,9 @@ use anyhow::Result;
 use clap::{Command, arg};
 
 use crate::config::Config;
-pub mod commands;
-pub mod config;
+mod commands;
+mod config;
+mod constants;
 
 fn cli() -> Command {
     Command::new("localpost")

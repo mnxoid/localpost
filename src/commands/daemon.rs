@@ -1,3 +1,4 @@
+use crate::constants::SOCKET_NAME;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use {
@@ -22,8 +23,6 @@ pub enum IPCResponse {
     Pong,
     Error(String),
 }
-
-const SOCKET_NAME: &str = "localpost.sock";
 
 pub fn daemon(file: &String, key: &String) -> Result<()> {
     println!("Starting daemon to serve file: {file} with key: {key}");
