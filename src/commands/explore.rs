@@ -1,3 +1,4 @@
+use crate::communication::ipc::{IPCClient, IPCRequest, IPCResponse};
 use crate::communication::tcp::{TCPRequest, TCPResponse};
 use crate::config::Config;
 use anyhow::{Result, anyhow};
@@ -7,13 +8,19 @@ use std::collections::BTreeMap;
 use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpSocket, TcpStream};
+use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 
 pub async fn explore(config: Config<'_>) -> Result<()> {
+    let local_session_id = match IPCClient::request(IPCRequest::Ping).unwrap_or(IPCResponse::Ok) {
+        IPCResponse::Pong(id) => Some(id),
+        _ => None,
+    };
     println!("Exploring currently served files on the local network");
     let interfaces = NetworkInterface::show()?;
+
+    let mut servers = BTreeMap::new();
 
     for iface in interfaces {
         for addr in iface.addr {
@@ -23,11 +30,6 @@ pub async fn explore(config: Config<'_>) -> Result<()> {
                 if net.prefix_len() != 24 {
                     continue; // Hacky way to skip networks that don't look like LAN
                 }
-                println!("Interface: {}", iface.name);
-                println!("IP: {}", v4.ip);
-                println!("Network: {}", net.network());
-                println!("Prefix: {}", net.prefix_len());
-                println!("Broadcast: {:?}", net.broadcast());
 
                 let (tx, mut rx) = mpsc::channel(100);
 
@@ -47,12 +49,22 @@ pub async fn explore(config: Config<'_>) -> Result<()> {
                 drop(tx);
 
                 while let Some((addr, session_id, files)) = rx.recv().await {
-                    println!("Server found: {addr}, session id: {session_id}");
-                    for (key, file) in files {
-                        println!("{}:{}", key, file);
+                    if Some(&session_id) == local_session_id.as_ref() {
+                        continue;
                     }
+                    println!("Server found: {addr}, session id: {session_id}");
+                    if servers.contains_key(&session_id) {
+                        continue;
+                    }
+                    servers.insert(session_id, (addr, files));
                 }
             }
+        }
+    }
+
+    for (session_id, (addr, files)) in servers {
+        for (file_key, file) in files {
+            println!("{session_id}({addr}) : {file_key}({file})");
         }
     }
     Ok(())

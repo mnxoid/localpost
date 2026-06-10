@@ -21,6 +21,7 @@ pub enum IPCRequest {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum IPCResponse {
     Ok,
+    Pong(String),
     Files(BTreeMap<String, String>), // (key, path)
     Error(String),
     RemovedLastFile,
