@@ -12,12 +12,25 @@ use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 
-pub async fn explore(config: Config<'_>) -> Result<()> {
+pub async fn explore(config: &Config<'_>) -> Result<()> {
+    println!("Exploring currently served files on the local network");
+    let shared_files = explore_files(config).await?;
+
+    for (file_key, (session_id, addr, file)) in shared_files {
+        println!("{session_id}({addr}) : {file_key}({file})");
+    }
+
+    Ok(())
+}
+
+pub async fn explore_files(
+    config: &Config<'_>,
+) -> Result<BTreeMap<String, (String, IpAddr, String)>> {
+    let port = config.port;
     let local_session_id = match IPCClient::request(IPCRequest::Ping).unwrap_or(IPCResponse::Ok) {
         IPCResponse::Pong(id) => Some(id),
         _ => None,
     };
-    println!("Exploring currently served files on the local network");
     let interfaces = NetworkInterface::show()?;
 
     let mut servers = BTreeMap::new();
@@ -36,9 +49,7 @@ pub async fn explore(config: Config<'_>) -> Result<()> {
                 for ip in generate_subnet_ips(net.network(), net.prefix_len())? {
                     let tx = tx.clone();
                     tokio::spawn(async move {
-                        if let Ok((session_id, files)) =
-                            send_discovery_packet(ip, config.port).await
-                        {
+                        if let Ok((session_id, files)) = send_discovery_packet(ip, port).await {
                             tx.send((ip, session_id, files))
                                 .await
                                 .unwrap_or_else(|_| {});
@@ -49,25 +60,26 @@ pub async fn explore(config: Config<'_>) -> Result<()> {
                 drop(tx);
 
                 while let Some((addr, session_id, files)) = rx.recv().await {
-                    if Some(&session_id) == local_session_id.as_ref()
+                    if (Some(&session_id) == local_session_id.as_ref())
                         || servers.contains_key(&session_id)
                     {
                         continue;
                     }
 
-                    println!("Server found: {addr}, session id: {session_id}");
                     servers.insert(session_id, (addr, files));
                 }
             }
         }
     }
 
+    let mut results = BTreeMap::new();
+
     for (session_id, (addr, files)) in servers {
         for (file_key, file) in files {
-            println!("{session_id}({addr}) : {file_key}({file})");
+            results.insert(file_key, (session_id.clone(), addr, file));
         }
     }
-    Ok(())
+    Ok(results)
 }
 
 async fn send_discovery_packet(

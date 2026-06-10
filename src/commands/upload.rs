@@ -1,18 +1,39 @@
+use crate::commands::explore_files;
 use crate::communication::ipc::{IPCClient, IPCRequest, IPCResponse};
 use crate::config::Config;
 use anyhow::Result;
 use rand::RngExt;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path;
 use std::process::{Command, Stdio};
 
-pub fn upload(config: &Config, file: &str) -> Result<()> {
-    // TODO: Implement collision handling
-    let mut key = generate_key(config);
-
+pub async fn upload(config: &Config<'_>, file: &str) -> Result<()> {
     let file_path = path::Path::new(file);
     if !file_path.exists() {
         println!("File not found: {file}");
         return Err(anyhow::anyhow!("File not found"));
+    }
+    let absolute_path = path::absolute(file_path)?;
+    let absolute_path_str = absolute_path.to_str().expect("file is not valid UTF-8");
+
+    // Check for local file collision
+    let local_files = match IPCClient::request(IPCRequest::ListFiles)
+        .unwrap_or(IPCResponse::Files(BTreeMap::new()))
+    {
+        IPCResponse::Files(local_files) => local_files.values().cloned().collect(),
+        _ => BTreeSet::new(),
+    };
+    if local_files.contains(absolute_path_str) {
+        println!("File is already being served");
+        return Ok(());
+    }
+
+    let shared_files = explore_files(config).await?;
+    let used_keys = shared_files.keys().collect::<BTreeSet<_>>();
+    let mut key = generate_key(config);
+    // Regenerate if needed
+    while used_keys.contains(&key) {
+        key = generate_key(config);
     }
 
     if let Err(_) = IPCClient::check_connection() {
@@ -21,7 +42,7 @@ pub fn upload(config: &Config, file: &str) -> Result<()> {
             .map_err(|e| anyhow::anyhow!("Failed to get current executable path: {}", e))?;
         let _ = Command::new(current_binary_path)
             .arg("daemon")
-            .arg(path::absolute(file_path)?)
+            .arg(absolute_path)
             .arg(key.clone())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
@@ -30,18 +51,6 @@ pub fn upload(config: &Config, file: &str) -> Result<()> {
         println!("Uploading file: {file} with key: {key}");
         return Ok(());
     };
-
-    // Check if the daemon is running and if the file is already being served
-    // If not, start serving the file and print the key
-    let response = IPCClient::request(IPCRequest::ListFiles)?;
-    match response {
-        IPCResponse::Files(files) => {
-            while files.contains_key(&key) {
-                key = generate_key(config);
-            }
-        }
-        _ => return Err(anyhow::anyhow!("Invalid IPC response")),
-    }
 
     println!("Uploading file: {file} with key: {key}");
     let response = IPCClient::request(IPCRequest::AddFile {
