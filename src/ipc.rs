@@ -31,7 +31,7 @@ pub struct IPCServer {
 }
 
 impl IPCServer {
-    pub fn start() -> Result<IPCServer> {
+    pub fn new() -> Result<IPCServer> {
         let name = SOCKET_NAME.to_ns_name::<GenericNamespaced>()?;
 
         // I have decided to use try_overwrite here because it's the cli part that's going to verify
@@ -57,10 +57,7 @@ impl IPCServer {
         Ok(Self { listener })
     }
 
-    pub fn handle_connections(
-        &mut self,
-        mut handler: impl FnMut(&IPCRequest) -> IPCResponse,
-    ) -> Result<()> {
+    pub fn start(&mut self, mut handler: impl FnMut(&IPCRequest) -> IPCResponse) -> Result<()> {
         // This buffer will be reused between clients.
         let mut buffer = String::with_capacity(512);
 

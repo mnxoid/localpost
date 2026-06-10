@@ -74,6 +74,7 @@ async fn main() -> Result<()> {
                     .expect("File argument is required"),
                 sub.get_one::<String>("key")
                     .expect("Key argument is required"),
+                config,
             )
             .await
         }
