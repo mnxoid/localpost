@@ -109,7 +109,7 @@ pub struct IPCClient {}
 impl IPCClient {
     pub fn check_connection() -> Result<()> {
         let response = Self::request(IPCRequest::Ping)?;
-        if let IPCResponse::Ok = response {
+        if let IPCResponse::Pong(_) = response {
             Ok(())
         } else {
             Err(anyhow!("Invalid IPC response: {response:?}"))
