@@ -3,16 +3,12 @@ pub use anyhow::Result;
 use anyhow::anyhow;
 
 pub fn list() -> Result<()> {
-    println!("Listing currently served files");
-    let mut ipc = match IPCClient::new() {
-        Ok(ipc) => ipc,
-        Err(_) => {
-            println!("No server currently running");
-            return Ok(());
-        }
+    if let Err(_) = IPCClient::check_connection() {
+        println!("No server currently running");
+        return Ok(());
     };
-    println!("Currently served files");
-    let response = ipc.request(IPCRequest::ListFiles)?;
+    println!("Currently served files:\n");
+    let response = IPCClient::request(IPCRequest::ListFiles)?;
     match response {
         IPCResponse::Files(files) => {
             for (k, v) in files {

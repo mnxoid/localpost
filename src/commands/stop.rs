@@ -2,21 +2,18 @@ use crate::ipc::{IPCClient, IPCRequest, IPCResponse};
 use anyhow::{Result, anyhow};
 
 pub fn stop(key: Option<&String>) -> Result<()> {
-    let mut ipc = match IPCClient::new() {
-        Ok(ipc) => ipc,
-        Err(_) => {
-            println!("No server currently running");
-            return Ok(());
-        }
+    if let Err(_) = IPCClient::check_connection() {
+        println!("No server currently running");
+        return Ok(());
     };
     let response = if let Some(key) = key {
         println!("Stopping serving file with key: {key}");
-        ipc.request(IPCRequest::RemoveFile {
+        IPCClient::request(IPCRequest::RemoveFile {
             key: key.to_owned(),
         })?
     } else {
         println!("Stopping serving all files");
-        ipc.request(IPCRequest::RemoveAllFiles)?
+        IPCClient::request(IPCRequest::RemoveAllFiles)?
     };
     match response {
         IPCResponse::RemovedLastFile => {

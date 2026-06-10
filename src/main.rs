@@ -68,12 +68,15 @@ async fn main() -> Result<()> {
                 .expect("Key argument is required"),
             sub.get_one::<String>("output"),
         ),
-        Some(("daemon", sub)) => commands::daemon(
-            sub.get_one::<String>("file")
-                .expect("File argument is required"),
-            sub.get_one::<String>("key")
-                .expect("Key argument is required"),
-        ),
+        Some(("daemon", sub)) => {
+            commands::daemon(
+                sub.get_one::<String>("file")
+                    .expect("File argument is required"),
+                sub.get_one::<String>("key")
+                    .expect("Key argument is required"),
+            )
+            .await
+        }
         _ => unreachable!(),
     }
 }

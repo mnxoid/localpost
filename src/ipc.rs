@@ -1,5 +1,5 @@
 use crate::constants::SOCKET_NAME;
-use anyhow::anyhow;
+use anyhow::{Result, anyhow};
 use interprocess::local_socket::traits::{ListenerExt, Stream};
 use interprocess::local_socket::{
     GenericNamespaced, Listener, ListenerOptions, Stream as LocalSocketStream, ToNsName,
@@ -11,6 +11,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum IPCRequest {
+    Ping,
     AddFile { key: String, path: String },
     RemoveFile { key: String },
     RemoveAllFiles,
@@ -20,7 +21,6 @@ pub enum IPCRequest {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum IPCResponse {
     Ok,
-    File(String),
     Files(BTreeMap<String, String>), // (key, path)
     Error(String),
     RemovedLastFile,
@@ -31,7 +31,7 @@ pub struct IPCServer {
 }
 
 impl IPCServer {
-    pub fn start() -> anyhow::Result<IPCServer> {
+    pub fn start() -> Result<IPCServer> {
         let name = SOCKET_NAME.to_ns_name::<GenericNamespaced>()?;
 
         // I have decided to use try_overwrite here because it's the cli part that's going to verify
@@ -60,7 +60,7 @@ impl IPCServer {
     pub fn handle_connections(
         &mut self,
         mut handler: impl FnMut(&IPCRequest) -> IPCResponse,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         // This buffer will be reused between clients.
         let mut buffer = String::with_capacity(512);
 
@@ -74,6 +74,7 @@ impl IPCServer {
             .map(BufReader::new)
         {
             conn.read_line(&mut buffer)?;
+            print!("Got request: {buffer}");
 
             let request = serde_json::from_str::<IPCRequest>(&buffer)?;
 
@@ -86,8 +87,6 @@ impl IPCServer {
 
             // Avoid holding up resources.
             drop(conn);
-
-            print!("Got request: {buffer}");
 
             // Clear the buffer so that the next iteration will display new data
             // instead of messages stacking on top of one another.
@@ -103,22 +102,24 @@ impl IPCServer {
     }
 }
 
-pub struct IPCClient {
-    stream: LocalSocketStream,
-}
+pub struct IPCClient {}
 
 impl IPCClient {
-    pub fn new() -> anyhow::Result<Self> {
-        let name = SOCKET_NAME.to_ns_name::<GenericNamespaced>()?;
-        let stream = LocalSocketStream::connect(name)?;
-        Ok(Self { stream })
+    pub fn check_connection() -> Result<()> {
+        let response = Self::request(IPCRequest::Ping)?;
+        if let IPCResponse::Ok = response {
+            Ok(())
+        } else {
+            Err(anyhow!("Invalid IPC response: {response:?}"))
+        }
     }
-
-    pub fn request(&mut self, request: IPCRequest) -> anyhow::Result<IPCResponse> {
+    pub fn request(request: IPCRequest) -> Result<IPCResponse> {
+        let name = SOCKET_NAME.to_ns_name::<GenericNamespaced>()?;
+        let mut stream = LocalSocketStream::connect(name)?;
         let payload = serde_json::to_string(&request)? + "\n";
-        self.stream.write_all(payload.as_bytes())?;
+        stream.write_all(payload.as_bytes())?;
         let mut buffer = String::new();
-        self.stream.read_to_string(&mut buffer)?;
+        stream.read_to_string(&mut buffer)?;
         serde_json::from_str::<IPCResponse>(&buffer)
             .map_err(|e| anyhow!("Failed to parse IPC response: {e}"))
     }
