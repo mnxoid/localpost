@@ -57,7 +57,11 @@ impl IPCServer {
         Ok(Self { listener })
     }
 
-    pub fn start(&mut self, mut handler: impl FnMut(&IPCRequest) -> IPCResponse) -> Result<()> {
+    pub async fn start<F, Fut>(&mut self, mut handler: F) -> Result<()>
+    where
+        F: FnMut(IPCRequest) -> Fut,
+        Fut: Future<Output = IPCResponse>,
+    {
         // This buffer will be reused between clients.
         let mut buffer = String::with_capacity(512);
 
@@ -75,7 +79,7 @@ impl IPCServer {
 
             let request = serde_json::from_str::<IPCRequest>(&buffer)?;
 
-            let response = handler(&request);
+            let response = handler(request).await;
 
             println!("Handler response: {response:?}");
 

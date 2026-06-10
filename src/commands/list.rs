@@ -1,4 +1,4 @@
-use crate::ipc::{IPCClient, IPCRequest, IPCResponse};
+use crate::communication::ipc::{IPCClient, IPCRequest, IPCResponse};
 pub use anyhow::Result;
 use anyhow::anyhow;
 

@@ -1,4 +1,4 @@
-use crate::ipc::{IPCClient, IPCRequest, IPCResponse};
+use crate::communication::ipc::{IPCClient, IPCRequest, IPCResponse};
 use anyhow::{Result, anyhow};
 
 pub fn stop(key: Option<&String>) -> Result<()> {

@@ -1,5 +1,5 @@
+use crate::communication::ipc::{IPCClient, IPCRequest, IPCResponse};
 use crate::config::Config;
-use crate::ipc::{IPCClient, IPCRequest, IPCResponse};
 use anyhow::Result;
 use rand::RngExt;
 use std::path;

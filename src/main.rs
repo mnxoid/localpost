@@ -3,9 +3,9 @@ use clap::{Command, arg};
 
 use crate::config::Config;
 mod commands;
+mod communication;
 mod config;
 mod constants;
-mod ipc;
 
 fn cli() -> Command {
     Command::new("localpost")
