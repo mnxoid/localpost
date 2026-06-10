@@ -1,6 +1,9 @@
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
+use std::time::Duration;
 use tokio::net::UdpSocket;
+use tokio::time::{Instant, timeout};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum UDPRequest {
@@ -42,5 +45,45 @@ impl UDPServer {
                 .send_to(&serde_json::to_vec(&response)?, &src)
                 .await?;
         }
+    }
+
+    pub async fn send_broadcast(&mut self, broadcast_address: &str, port: u16) -> Result<()> {
+        self.socket.set_broadcast(true)?;
+        let request = UDPRequest::Discovery;
+        let message = serde_json::to_vec(&request)?;
+
+        self.socket
+            .send_to(&message, (broadcast_address, port))
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn receive_responses(
+        &mut self,
+        timeout_dur: Duration,
+    ) -> Result<Vec<(SocketAddr, UDPResponse)>> {
+        let mut buffer = [0; 1024];
+        let mut responses = Vec::new();
+
+        let deadline = Instant::now() + timeout_dur;
+
+        loop {
+            let remaining = match deadline.checked_duration_since(Instant::now()) {
+                Some(d) => d,
+                None => break,
+            };
+
+            match timeout(remaining, self.socket.recv_from(&mut buffer)).await {
+                Ok(Ok((size, src))) => {
+                    let response = serde_json::from_slice(&buffer[..size])?;
+                    responses.push((src, response));
+                }
+                Ok(Err(_)) => break,
+                Err(_) => break, // timeout reached
+            }
+        }
+
+        Ok(responses)
     }
 }
