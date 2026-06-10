@@ -49,13 +49,13 @@ pub async fn explore(config: Config<'_>) -> Result<()> {
                 drop(tx);
 
                 while let Some((addr, session_id, files)) = rx.recv().await {
-                    if Some(&session_id) == local_session_id.as_ref() {
+                    if Some(&session_id) == local_session_id.as_ref()
+                        || servers.contains_key(&session_id)
+                    {
                         continue;
                     }
+
                     println!("Server found: {addr}, session id: {session_id}");
-                    if servers.contains_key(&session_id) {
-                        continue;
-                    }
                     servers.insert(session_id, (addr, files));
                 }
             }
