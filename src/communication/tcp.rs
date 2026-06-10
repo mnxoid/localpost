@@ -1,6 +1,7 @@
 use crate::config::Config;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
@@ -16,7 +17,10 @@ pub enum TCPRequest {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum TCPResponse {
-    Discovery,
+    Discovery {
+        session_id: String,
+        files: BTreeMap<String, String>,
+    },
     Other,
 }
 

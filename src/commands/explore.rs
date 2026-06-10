@@ -3,6 +3,7 @@ use crate::config::Config;
 use anyhow::{Result, anyhow};
 use ipnet::Ipv4Net;
 use network_interface::{NetworkInterface, NetworkInterfaceConfig};
+use std::collections::BTreeMap;
 use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -33,16 +34,23 @@ pub async fn explore(config: Config<'_>) -> Result<()> {
                 for ip in generate_subnet_ips(net.network(), net.prefix_len())? {
                     let tx = tx.clone();
                     tokio::spawn(async move {
-                        if let Ok(_) = send_discovery_packet(ip, config.port).await {
-                            tx.send(ip).await.unwrap_or_else(|_| {});
+                        if let Ok((session_id, files)) =
+                            send_discovery_packet(ip, config.port).await
+                        {
+                            tx.send((ip, session_id, files))
+                                .await
+                                .unwrap_or_else(|_| {});
                         }
                     });
                 }
 
                 drop(tx);
 
-                while let Some(addr) = rx.recv().await {
-                    println!("Server found: {addr}");
+                while let Some((addr, session_id, files)) = rx.recv().await {
+                    println!("Server found: {addr}, session id: {session_id}");
+                    for (key, file) in files {
+                        println!("{}:{}", key, file);
+                    }
                 }
             }
         }
@@ -50,9 +58,11 @@ pub async fn explore(config: Config<'_>) -> Result<()> {
     Ok(())
 }
 
-async fn send_discovery_packet(ip: IpAddr, port: u16) -> Result<()> {
-    // Set a 20ms timeout
-    let result = timeout(Duration::from_millis(50), async move {
+async fn send_discovery_packet(
+    ip: IpAddr,
+    port: u16,
+) -> Result<(String, BTreeMap<String, String>)> {
+    let result = timeout(Duration::from_millis(100), async move {
         // println!("Sending discovery packet to {ip}");
         let mut stream = TcpStream::connect(format!("{ip}:{port}")).await?;
         stream
@@ -66,8 +76,8 @@ async fn send_discovery_packet(ip: IpAddr, port: u16) -> Result<()> {
         let mut buffer = String::with_capacity(1024);
         stream.read_to_string(&mut buffer).await?;
         let response = serde_json::from_str::<TCPResponse>(&buffer)?;
-        if let TCPResponse::Discovery = response {
-            Ok(())
+        if let TCPResponse::Discovery { session_id, files } = response {
+            Ok((session_id, files))
         } else {
             Err(anyhow!("Unexpected response from server"))
         }
@@ -75,7 +85,7 @@ async fn send_discovery_packet(ip: IpAddr, port: u16) -> Result<()> {
     .await;
 
     match result {
-        Ok(Ok(())) => Ok(()),
+        Ok(Ok(response)) => Ok(response),
         Ok(Err(_)) | Err(_) => {
             // println!("Timeout or error on {ip}");
             Err(anyhow!("Timeout or error in send_discovery_packet"))

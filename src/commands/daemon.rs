@@ -1,3 +1,4 @@
+use crate::commands::generate_key;
 use crate::communication::ipc::{IPCRequest, IPCResponse, IPCServer};
 use crate::communication::tcp::{TCPRequest, TCPResponse, TCPServer};
 use crate::communication::udp::{UDPRequest, UDPResponse, UDPServer};
@@ -10,6 +11,7 @@ use tokio::task;
 
 pub struct DaemonState {
     pub served_files: BTreeMap<String, String>,
+    pub session_id: String,
 }
 
 pub async fn daemon(file: &str, key: &str, config: Config<'_>) -> Result<()> {
@@ -17,6 +19,7 @@ pub async fn daemon(file: &str, key: &str, config: Config<'_>) -> Result<()> {
 
     let state = Arc::new(Mutex::new(DaemonState {
         served_files: BTreeMap::from_iter([(key.to_string(), file.to_string())].into_iter()),
+        session_id: generate_key(&config),
     }));
     // Spawn the IPC server on a separate task
     let ipc_state = state.clone();
@@ -131,7 +134,10 @@ async fn handle_tcp_request(packet: TCPRequest, state: Arc<Mutex<DaemonState>>) 
     match packet {
         TCPRequest::Discovery => {
             println!("Received discovery packet");
-            TCPResponse::Discovery
+            TCPResponse::Discovery {
+                session_id: state.session_id.clone(),
+                files: state.served_files.clone(),
+            }
         }
         TCPRequest::Other => {
             println!("Received unknown packet type");
