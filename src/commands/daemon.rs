@@ -1,4 +1,5 @@
 use crate::communication::ipc::{IPCRequest, IPCResponse, IPCServer};
+use crate::communication::tcp::{TCPRequest, TCPResponse, TCPServer};
 use crate::communication::udp::{UDPRequest, UDPResponse, UDPServer};
 use crate::config::Config;
 use anyhow::Result;
@@ -41,6 +42,18 @@ pub async fn daemon(file: &str, key: &str, config: Config<'_>) -> Result<()> {
             .await
     });
 
+    // Spawn the TCP server task on a separate task
+    let mut server = TCPServer::new(config.port).await?;
+    let tcp_state = state.clone();
+    let tcp_server_task = task::spawn(async move {
+        server
+            .start(async |packet| {
+                let state = tcp_state.clone();
+                handle_tcp_request(packet, state).await
+            })
+            .await
+    });
+
     // Await the result of either task
     tokio::select! {
         ipc_result = ipc_server_task => {
@@ -53,6 +66,12 @@ pub async fn daemon(file: &str, key: &str, config: Config<'_>) -> Result<()> {
             match udp_result {
                 Ok(_) => println!("UDP server shut down gracefully"),
                 Err(e) => println!("UDP server failed to shut down: {e}"),
+            }
+        },
+        tcp_result = tcp_server_task => {
+            match tcp_result {
+                Ok(_) => println!("TCP server shut down gracefully"),
+                Err(e) => println!("TCP server failed to shut down: {e}"),
             }
         },
     }
@@ -103,6 +122,20 @@ async fn handle_udp_request(packet: UDPRequest, state: Arc<Mutex<DaemonState>>) 
         UDPRequest::Other => {
             println!("Received unknown packet type");
             UDPResponse::Other
+        }
+    }
+}
+
+async fn handle_tcp_request(packet: TCPRequest, state: Arc<Mutex<DaemonState>>) -> TCPResponse {
+    let mut state = state.lock().await;
+    match packet {
+        TCPRequest::Discovery => {
+            println!("Received discovery packet");
+            TCPResponse::Discovery
+        }
+        TCPRequest::Other => {
+            println!("Received unknown packet type");
+            TCPResponse::Other
         }
     }
 }

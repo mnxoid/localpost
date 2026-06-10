@@ -1,21 +1,111 @@
-use crate::communication::udp::{UDPResponse, UDPServer};
+use crate::communication::tcp::{TCPRequest, TCPResponse};
 use crate::config::Config;
-use anyhow::Result;
+use anyhow::{Result, anyhow};
+use ipnet::Ipv4Net;
+use network_interface::{NetworkInterface, NetworkInterfaceConfig};
+use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpSocket, TcpStream};
+use tokio::sync::mpsc;
+use tokio::time::timeout;
 
 pub async fn explore(config: Config<'_>) -> Result<()> {
     println!("Exploring currently served files on the local network");
-    let mut udp_server = UDPServer::new(0).await?;
-    udp_server
-        .send_broadcast("239.42.42.42", config.port)
-        .await?;
-    let responses = udp_server.receive_responses(Duration::from_secs(5)).await?;
+    let interfaces = NetworkInterface::show()?;
 
-    for (addr, response) in responses {
-        match response {
-            UDPResponse::Discovery => println!("Server found: {addr}"),
-            UDPResponse::Other => println!("Received other response: {addr}"),
+    for iface in interfaces {
+        for addr in iface.addr {
+            if let network_interface::Addr::V4(v4) = addr {
+                let net =
+                    Ipv4Net::with_netmask(v4.ip, v4.netmask.expect("Should have a net mask"))?;
+                if net.prefix_len() != 24 {
+                    continue; // Hacky way to skip networks that don't look like LAN
+                }
+                println!("Interface: {}", iface.name);
+                println!("IP: {}", v4.ip);
+                println!("Network: {}", net.network());
+                println!("Prefix: {}", net.prefix_len());
+                println!("Broadcast: {:?}", net.broadcast());
+
+                let (tx, mut rx) = mpsc::channel(100);
+
+                for ip in generate_subnet_ips(net.network(), net.prefix_len())? {
+                    let tx = tx.clone();
+                    tokio::spawn(async move {
+                        if let Ok(_) = send_discovery_packet(ip, config.port).await {
+                            tx.send(ip).await.unwrap_or_else(|_| {});
+                        }
+                    });
+                }
+
+                drop(tx);
+
+                while let Some(addr) = rx.recv().await {
+                    println!("Server found: {addr}");
+                }
+            }
         }
     }
     Ok(())
+}
+
+async fn send_discovery_packet(ip: IpAddr, port: u16) -> Result<()> {
+    // Set a 20ms timeout
+    let result = timeout(Duration::from_millis(50), async move {
+        // println!("Sending discovery packet to {ip}");
+        let mut stream = TcpStream::connect(format!("{ip}:{port}")).await?;
+        stream
+            .write_all(
+                serde_json::to_string(&TCPRequest::Discovery)
+                    .expect("Should be able to serialize")
+                    .as_bytes(),
+            )
+            .await?;
+
+        let mut buffer = String::with_capacity(1024);
+        stream.read_to_string(&mut buffer).await?;
+        let response = serde_json::from_str::<TCPResponse>(&buffer)?;
+        if let TCPResponse::Discovery = response {
+            Ok(())
+        } else {
+            Err(anyhow!("Unexpected response from server"))
+        }
+    })
+    .await;
+
+    match result {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(_)) | Err(_) => {
+            // println!("Timeout or error on {ip}");
+            Err(anyhow!("Timeout or error in send_discovery_packet"))
+        }
+    }
+}
+
+fn generate_subnet_ips(
+    network_ip: Ipv4Addr,
+    prefix_length: u8,
+) -> Result<Vec<IpAddr>, anyhow::Error> {
+    if prefix_length > 32 {
+        return Err(anyhow!("Invalid prefix length"));
+    }
+
+    let mask = if prefix_length == 0 {
+        0
+    } else {
+        u32::MAX << (32 - prefix_length)
+    };
+    let network = network_ip.to_bits() & mask;
+
+    let mut ips = Vec::new();
+    let total_ips = 1 << (32 - prefix_length);
+
+    for i in 1..total_ips - 1 {
+        // Exclude the network and broadcast addresses
+        let ip = Ipv4Addr::from_bits(network | i);
+        ips.push(IpAddr::V4(ip));
+    }
+
+    Ok(ips)
 }
