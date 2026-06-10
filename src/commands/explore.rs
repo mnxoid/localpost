@@ -7,7 +7,7 @@ pub async fn explore(config: Config<'_>) -> Result<()> {
     println!("Exploring currently served files on the local network");
     let mut udp_server = UDPServer::new(0).await?;
     udp_server
-        .send_broadcast("255.255.255.255", config.port)
+        .send_broadcast("239.42.42.42", config.port)
         .await?;
     let responses = udp_server.receive_responses(Duration::from_secs(5)).await?;
 

@@ -24,6 +24,7 @@ pub struct UDPServer {
 impl UDPServer {
     pub async fn new(port: u16) -> Result<UDPServer> {
         let socket = UdpSocket::bind(format!("0.0.0.0:{}", port)).await?;
+        socket.join_multicast_v4("239.42.42.42".parse()?, "0.0.0.0".parse()?)?;
         Ok(Self { socket })
     }
 
