@@ -14,3 +14,5 @@ directories = "6"
 rand = "0.10.1"
 anyhow = "1"
 interprocess = { version = "2.4", features = ["tokio"] }
+itertools = "0.14.0"
+serde_json = "1.0"

@@ -1,25 +1,31 @@
-use crate::constants::SOCKET_NAME;
+use crate::ipc::{IPCClient, IPCRequest, IPCResponse};
 pub use anyhow::Result;
-use interprocess::local_socket::prelude::*;
-use interprocess::local_socket::{GenericNamespaced, ToNsName};
-use std::io::{Read, Write};
+use anyhow::anyhow;
 
 pub fn list() -> Result<()> {
     println!("Listing currently served files");
-    let name = SOCKET_NAME.to_ns_name::<GenericNamespaced>()?;
-    let mut stream = match LocalSocketStream::connect(name) {
-        Ok(stream) => stream,
-        Err(e) => {
+    let mut ipc = match IPCClient::new() {
+        Ok(ipc) => ipc,
+        Err(_) => {
             println!("No server currently running");
             return Ok(());
         }
     };
-    println!("Connected to server");
-    let mut buffer = String::new();
-    stream.write_all(b"Hello from client!\n")?;
-    stream
-        .read_to_string(&mut buffer)
-        .expect("Should have something to read");
-    println!("{}", buffer);
+    println!("Currently served files");
+    let response = ipc.request(IPCRequest::ListFiles)?;
+    match response {
+        IPCResponse::Files(files) => {
+            for (k, v) in files {
+                println!("{} : {}", k, v);
+            }
+        }
+        _ => {
+            return Err(anyhow!(
+                "Invalid IPC response: {}",
+                serde_json::to_string(&response)?
+            ));
+        }
+    }
+
     Ok(())
 }

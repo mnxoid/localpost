@@ -5,6 +5,7 @@ use crate::config::Config;
 mod commands;
 mod config;
 mod constants;
+mod ipc;
 
 fn cli() -> Command {
     Command::new("localpost")
@@ -44,7 +45,8 @@ fn cli() -> Command {
         )
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let matches = cli().get_matches();
 
     // Load the config file
