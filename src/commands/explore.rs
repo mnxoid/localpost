@@ -48,9 +48,7 @@ pub async fn explore_files(
                     let tx = tx.clone();
                     tokio::spawn(async move {
                         if let Ok((session_id, files)) = send_discovery_packet(ip, port).await {
-                            tx.send((ip, session_id, files))
-                                .await
-                                .unwrap_or_else(|_| {});
+                            tx.send((ip, session_id, files)).await.unwrap_or(());
                         }
                     });
                 }

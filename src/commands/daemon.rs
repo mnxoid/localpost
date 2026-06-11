@@ -23,9 +23,7 @@ pub async fn daemon(file: &str, key: &str, config: Config<'_>) -> Result<()> {
         (Path::new(file).metadata()?.len() as f64 / (1024.0 * 1024.0)).ceil() as usize;
 
     let state = Arc::new(Mutex::new(DaemonState {
-        served_files: BTreeMap::from_iter(
-            [(key.to_string(), (file.to_string(), file_size_mb))].into_iter(),
-        ),
+        served_files: BTreeMap::from_iter([(key.to_string(), (file.to_string(), file_size_mb))]),
         session_id: generate_key(&config),
     }));
     // Spawn the IPC server on a separate task

@@ -2,7 +2,7 @@ use crate::communication::ipc::{IPCClient, IPCRequest, IPCResponse};
 use anyhow::{Result, anyhow};
 
 pub fn stop(key: Option<&String>) -> Result<()> {
-    if let Err(_) = IPCClient::check_connection() {
+    if IPCClient::check_connection().is_err() {
         println!("No server currently running");
         return Ok(());
     };

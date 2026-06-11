@@ -40,7 +40,7 @@ pub async fn upload(config: &Config<'_>, file: &str) -> Result<()> {
         key = generate_key(config);
     }
 
-    if let Err(_) = IPCClient::check_connection() {
+    if IPCClient::check_connection().is_err() {
         println!("Starting daemon...");
         let current_binary_path = std::env::current_exe()
             .map_err(|e| anyhow::anyhow!("Failed to get current executable path: {}", e))?;

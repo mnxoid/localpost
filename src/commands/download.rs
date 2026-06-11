@@ -14,7 +14,7 @@ pub async fn download(
 ) -> Result<()> {
     let shared_files = explore_files(config).await?;
 
-    let Some((session_id, addr, (file_name, num_chunks))) = shared_files.get(key) else {
+    let Some((_, addr, (file_name, num_chunks))) = shared_files.get(key) else {
         println!("No shared file found for {}", key);
         return Ok(());
     };
