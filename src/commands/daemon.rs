@@ -122,6 +122,9 @@ async fn handle_tcp_request(packet: TCPRequest, state: Arc<Mutex<DaemonState>>) 
                 return TCPResponse::Error("Key not found".to_string());
             };
             drop(state);
+            if chunk_index >= num_chunks {
+                return TCPResponse::Error("Chunk index out of range".to_string());
+            }
             let Ok(chunk_content) = load_nth_megabyte(&file_path, chunk_index) else {
                 return TCPResponse::Error("Failed to read file".to_string());
             };

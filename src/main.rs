@@ -35,6 +35,7 @@ fn cli() -> Command {
                 .about("Download a file by its key")
                 .arg_required_else_help(true)
                 .arg(arg!(key: <KEY> "The key that identifies the file"))
+                .arg(arg!(--print "Print the file contents").conflicts_with("output"))
                 .arg(arg!(--output <PATH> "Download location")),
         )
         .subcommand(
@@ -69,6 +70,7 @@ async fn main() -> Result<()> {
                 sub.get_one::<String>("key")
                     .expect("Key argument is required"),
                 sub.get_one::<String>("output"),
+                sub.get_flag("print"),
             )
             .await
         }
