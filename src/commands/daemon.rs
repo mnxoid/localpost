@@ -4,6 +4,8 @@ use crate::communication::tcp::{TCPRequest, TCPResponse, TCPServer};
 use crate::config::Config;
 use anyhow::Result;
 use std::collections::BTreeMap;
+use std::fs::File;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -105,18 +107,46 @@ async fn handle_ipc_request(request: IPCRequest, state: Arc<Mutex<DaemonState>>)
 }
 
 async fn handle_tcp_request(packet: TCPRequest, state: Arc<Mutex<DaemonState>>) -> TCPResponse {
-    let state = state.lock().await;
     match packet {
         TCPRequest::Discovery => {
+            let state = state.lock().await;
             println!("Received discovery packet");
             TCPResponse::Discovery {
                 session_id: state.session_id.clone(),
                 files: state.served_files.clone(),
             }
         }
-        TCPRequest::Download(key) => {
-            println!("Received unknown packet type");
-            TCPResponse::Other
+        TCPRequest::Download(key, chunk_index) => {
+            let state = state.lock().await;
+            let Some((file_path, num_chunks)) = state.served_files.get(&key).cloned() else {
+                return TCPResponse::Error("Key not found".to_string());
+            };
+            drop(state);
+            let Ok(chunk_content) = load_nth_megabyte(&file_path, chunk_index) else {
+                return TCPResponse::Error("Failed to read file".to_string());
+            };
+            println!("Received download request for file: {key}, chunk_index: {chunk_index}");
+            TCPResponse::FileChunk(chunk_content)
         }
     }
+}
+
+fn load_nth_megabyte(file_path: &str, n: usize) -> Result<Vec<u8>> {
+    // Open the file in binary read mode
+    let mut file = File::open(file_path)?;
+
+    // Seek to the start of the n-th megabyte
+    let byte_offset = (n * 1024 * 1024) as u64;
+    file.seek(SeekFrom::Start(byte_offset))?;
+
+    // Create a buffer to store the data
+    let mut buffer = vec![0u8; 1024 * 1024];
+
+    // Read 1 MB of data from the file into the buffer
+    let bytes_read = file.read(&mut buffer)?;
+
+    // Resize the buffer to the actual number of bytes read
+    buffer.resize(bytes_read, 0);
+
+    Ok(buffer)
 }

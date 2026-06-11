@@ -1,5 +1,5 @@
 use crate::communication::ipc::{IPCClient, IPCRequest, IPCResponse};
-use crate::communication::tcp::{TCPRequest, TCPResponse};
+use crate::communication::tcp::{TCPClient, TCPRequest, TCPResponse};
 use crate::config::Config;
 use anyhow::{Result, anyhow};
 use ipnet::Ipv4Net;
@@ -7,8 +7,6 @@ use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 use std::collections::BTreeMap;
 use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 
@@ -87,19 +85,10 @@ async fn send_discovery_packet(
     port: u16,
 ) -> Result<(String, BTreeMap<String, (String, usize)>)> {
     let result = timeout(Duration::from_millis(100), async move {
-        // println!("Sending discovery packet to {ip}");
-        let mut stream = TcpStream::connect(format!("{ip}:{port}")).await?;
-        stream
-            .write_all(
-                serde_json::to_string(&TCPRequest::Discovery)
-                    .expect("Should be able to serialize")
-                    .as_bytes(),
-            )
-            .await?;
+        let mut client = TCPClient::new(ip, port).await?;
+        let request = TCPRequest::Discovery;
 
-        let mut buffer = String::with_capacity(1024);
-        stream.read_to_string(&mut buffer).await?;
-        let response = serde_json::from_str::<TCPResponse>(&buffer)?;
+        let response = client.send_request(request).await?;
         if let TCPResponse::Discovery { session_id, files } = response {
             Ok((session_id, files))
         } else {
