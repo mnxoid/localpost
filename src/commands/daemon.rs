@@ -4,20 +4,26 @@ use crate::communication::tcp::{TCPRequest, TCPResponse, TCPServer};
 use crate::config::Config;
 use anyhow::Result;
 use std::collections::BTreeMap;
+use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task;
 
 pub struct DaemonState {
-    pub served_files: BTreeMap<String, String>,
+    pub served_files: BTreeMap<String, (String, usize)>,
     pub session_id: String,
 }
 
 pub async fn daemon(file: &str, key: &str, config: Config<'_>) -> Result<()> {
     println!("Starting daemon to serve file: {file} with key: {key}");
 
+    let file_size_mb =
+        (Path::new(file).metadata()?.len() as f64 / (1024.0 * 1024.0)).ceil() as usize;
+
     let state = Arc::new(Mutex::new(DaemonState {
-        served_files: BTreeMap::from_iter([(key.to_string(), file.to_string())].into_iter()),
+        served_files: BTreeMap::from_iter(
+            [(key.to_string(), (file.to_string(), file_size_mb))].into_iter(),
+        ),
         session_id: generate_key(&config),
     }));
     // Spawn the IPC server on a separate task
@@ -65,12 +71,14 @@ pub async fn daemon(file: &str, key: &str, config: Config<'_>) -> Result<()> {
 
 async fn handle_ipc_request(request: IPCRequest, state: Arc<Mutex<DaemonState>>) -> IPCResponse {
     match request {
-        IPCRequest::AddFile { key, path } => {
+        IPCRequest::AddFile { key, path, chunks } => {
             let mut state = state.lock().await;
             if state.served_files.contains_key(&key) {
                 return IPCResponse::Error(format!("File already exists: {path} (key: {key})"));
             }
-            state.served_files.insert(key.to_string(), path.to_string());
+            state
+                .served_files
+                .insert(key.to_string(), (path.to_string(), chunks));
             IPCResponse::Ok
         }
         IPCRequest::RemoveFile { key } => {
@@ -106,7 +114,7 @@ async fn handle_tcp_request(packet: TCPRequest, state: Arc<Mutex<DaemonState>>) 
                 files: state.served_files.clone(),
             }
         }
-        TCPRequest::Other => {
+        TCPRequest::Download(key) => {
             println!("Received unknown packet type");
             TCPResponse::Other
         }

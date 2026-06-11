@@ -16,8 +16,8 @@ pub async fn explore(config: &Config<'_>) -> Result<()> {
     println!("Exploring currently served files on the local network");
     let shared_files = explore_files(config).await?;
 
-    for (file_key, (session_id, addr, file)) in shared_files {
-        println!("{session_id}({addr}) : {file_key}({file})");
+    for (file_key, (session_id, addr, (file, chunks))) in shared_files {
+        println!("{file_key}({file})({chunks} chunks) at {session_id}({addr})");
     }
 
     Ok(())
@@ -25,7 +25,7 @@ pub async fn explore(config: &Config<'_>) -> Result<()> {
 
 pub async fn explore_files(
     config: &Config<'_>,
-) -> Result<BTreeMap<String, (String, IpAddr, String)>> {
+) -> Result<BTreeMap<String, (String, IpAddr, (String, usize))>> {
     let port = config.port;
     let local_session_id = match IPCClient::request(IPCRequest::Ping).unwrap_or(IPCResponse::Ok) {
         IPCResponse::Pong(id) => Some(id),
@@ -85,7 +85,7 @@ pub async fn explore_files(
 async fn send_discovery_packet(
     ip: IpAddr,
     port: u16,
-) -> Result<(String, BTreeMap<String, String>)> {
+) -> Result<(String, BTreeMap<String, (String, usize)>)> {
     let result = timeout(Duration::from_millis(100), async move {
         // println!("Sending discovery packet to {ip}");
         let mut stream = TcpStream::connect(format!("{ip}:{port}")).await?;

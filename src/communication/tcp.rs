@@ -12,14 +12,14 @@ pub struct TCPServer {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum TCPRequest {
     Discovery,
-    Other,
+    Download(String),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum TCPResponse {
     Discovery {
         session_id: String,
-        files: BTreeMap<String, String>,
+        files: BTreeMap<String, (String, usize)>,
     },
     Other,
 }

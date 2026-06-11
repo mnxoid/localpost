@@ -20,7 +20,11 @@ pub async fn upload(config: &Config<'_>, file: &str) -> Result<()> {
     let local_files = match IPCClient::request(IPCRequest::ListFiles)
         .unwrap_or(IPCResponse::Files(BTreeMap::new()))
     {
-        IPCResponse::Files(local_files) => local_files.values().cloned().collect(),
+        IPCResponse::Files(local_files) => local_files
+            .values()
+            .map(|(filename, _)| filename)
+            .cloned()
+            .collect(),
         _ => BTreeSet::new(),
     };
     if local_files.contains(absolute_path_str) {
@@ -52,10 +56,13 @@ pub async fn upload(config: &Config<'_>, file: &str) -> Result<()> {
         return Ok(());
     };
 
+    let file_size_mb = ((file_path.metadata()?.len() as f64) / (1024.0 * 1024.0)).ceil() as usize;
+
     println!("Uploading file: {file} with key: {key}");
     let response = IPCClient::request(IPCRequest::AddFile {
         key,
         path: path::absolute(file_path)?.to_string_lossy().to_string(),
+        chunks: file_size_mb,
     })?;
     match response {
         IPCResponse::Ok => {

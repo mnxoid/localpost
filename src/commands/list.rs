@@ -11,8 +11,8 @@ pub fn list() -> Result<()> {
     let response = IPCClient::request(IPCRequest::ListFiles)?;
     match response {
         IPCResponse::Files(files) => {
-            for (k, v) in files {
-                println!("{} : {}", k, v);
+            for (k, (filename, chunks)) in files {
+                println!("{} : {} ({} chunks)", k, filename, chunks);
             }
         }
         _ => {

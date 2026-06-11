@@ -12,8 +12,14 @@ use std::io::{BufRead, BufReader, Read, Write};
 #[derive(Serialize, Deserialize, Debug)]
 pub enum IPCRequest {
     Ping,
-    AddFile { key: String, path: String },
-    RemoveFile { key: String },
+    AddFile {
+        key: String,
+        path: String,
+        chunks: usize,
+    },
+    RemoveFile {
+        key: String,
+    },
     RemoveAllFiles,
     ListFiles,
 }
@@ -22,7 +28,7 @@ pub enum IPCRequest {
 pub enum IPCResponse {
     Ok,
     Pong(String),
-    Files(BTreeMap<String, String>), // (key, path)
+    Files(BTreeMap<String, (String, usize)>), // (key, path)
     Error(String),
     RemovedLastFile,
 }

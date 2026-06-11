@@ -63,11 +63,15 @@ async fn main() -> Result<()> {
         Some(("stop", sub)) => commands::stop(sub.get_one::<String>("key")),
         Some(("list", _)) => commands::list(),
         Some(("explore", _)) => commands::explore(&config).await,
-        Some(("download", sub)) => commands::download(
-            sub.get_one::<String>("key")
-                .expect("Key argument is required"),
-            sub.get_one::<String>("output"),
-        ),
+        Some(("download", sub)) => {
+            commands::download(
+                &config,
+                sub.get_one::<String>("key")
+                    .expect("Key argument is required"),
+                sub.get_one::<String>("output"),
+            )
+            .await
+        }
         Some(("daemon", sub)) => {
             commands::daemon(
                 sub.get_one::<String>("file")
