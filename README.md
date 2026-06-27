@@ -1,4 +1,5 @@
 # Localpost
+![Build](https://github.com/mnxoid/localpost/actions/workflows/rust.yml/badge.svg)
 
 This application is a simple command-line interface (CLI) file sharing tool designed for easy and efficient file
 transfers within a local network. With `localpost`, you can serve, explore and download files across the local network
