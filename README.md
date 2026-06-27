@@ -31,10 +31,10 @@ New-NetFirewallRule `
 
 ## Usage
 
+![demo](res/demo.gif)
+
 The `localpost` CLI provides several subcommands to perform different operations. Below are brief descriptions and
 examples of how to use each command.
-
-![demo](res/demo.mp4)
 
 ### Uploading a file
 
